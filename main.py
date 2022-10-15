@@ -1,3 +1,7 @@
+#
+#
+
+# ignore pygame advertisement, sorry just to self aware lib
 import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 
