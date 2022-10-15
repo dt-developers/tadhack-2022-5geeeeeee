@@ -31,13 +31,15 @@ class Wall:
         self.direction = end - start
         self.texture_index = texture_index
 
+
 class Projectile:
-    def __init__(self, position, direction, api, speed = 1):
+    def __init__(self, position, direction, api, speed=1):
         self.position = position
         self.direction = direction
         self.api = api
         self.speed = speed
         self.birth_time = pygame.time.get_ticks()
+
 
 class Level:
     def __init__(self):
@@ -135,9 +137,39 @@ class FiveGeeeeeeeee:
             if now > projectile.birth_time + 300:
                 self._level.projectiles.remove(projectile)
 
-    def wall_height(self, x):
-        distance = x * x
-        return self.width - self._r.randint(int(self.width / 3), int(2 * self.width / 3))
+    def wall_intersection_at_column(self, column):
+        fov = 60
+
+        # direction of ray
+        direction = self.player.direction.rotate(-fov / 2)
+        direction.rotate_ip(fov * (column / self.width))
+
+        intersecting_walls = list()
+
+        pd = self.player.direction
+        for wall in self._level.walls:
+            wd = wall.direction
+            dot = wd.dot(pd)
+
+            if dot < 0:
+                # not hitting
+                continue
+            else:
+
+
+
+
+            if 0 < column < 1:
+                distance = (intersection - self.player.position) / self.player.direction
+            intersecting_walls.append((distance, wall))
+            else:
+                continue
+
+        if len(intersecting_walls) > 0:
+            intersecting_walls.sort(key=lambda it: it[0])
+            return intersecting_walls[0]
+        else:
+            return None
 
     def draw_hud(self, surface):
         money = self._font.render('Money: %03d' % self.player.money, True, (255, 0, 255))
@@ -180,7 +212,12 @@ class FiveGeeeeeeeee:
 
     def draw_level(self, surface):
         for w in range(0, self.width):
-            wall_height = self.wall_height(w)
+            intersection = self.wall_intersection_at_column(w)
+            if intersection:
+                (distance, wall) = intersection
+                wall_height = 1 / distance
+            else:
+                wall_height = 0
 
             pygame.draw.line(
                 surface,
@@ -208,7 +245,7 @@ class FiveGeeeeeeeee:
 
         self.draw_hud(self._display_surf)
 
-        #debug
+        # debug
         self.draw_player(self._display_surf, self.player)
 
         pygame.display.update()
