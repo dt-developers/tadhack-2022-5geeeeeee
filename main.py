@@ -18,8 +18,8 @@ class Player:
     def __init__(self):
         self.position = Vector2(50, 50)
         self.direction = Vector2(0, -1)
-        self.speed = .3
-        self.turn_speed = 1
+        self.speed = 3
+        self.turn_speed = 10
         self.money = 100
         self.points = 0
         self.api = 0
@@ -169,22 +169,21 @@ class FiveGeeeeeeeee:
                 # px - p0 = x*v
                 # (px - p0) / v = x
                 if not math.isclose(ray_end.x, 0):
-                    t1 = (intersection.x - ray_start.x) / ray_direction.x
+                    distance = (intersection.x - ray_start.x) / ray_direction.x
                 elif not math.isclose(ray_end.y, 0):
-                    t1 = (intersection.y - ray_start.y) / ray_direction.y
+                    distance = (intersection.y - ray_start.y) / ray_direction.y
                 else:
                     continue
 
                 if not math.isclose(wall.direction.x, 0):
-                    t2 = (intersection.x - wall.start.x) / wall.direction.x
+                    on_wall = (intersection.x - wall.start.x) / wall.direction.x
                 elif not math.isclose(wall.direction.y, 0):
-                    t2 = (intersection.y - wall.start.y) / wall.direction.y
+                    on_wall = (intersection.y - wall.start.y) / wall.direction.y
                 else:
                     continue
 
-                if t1 > 0 and 0 < t2 < 1:
-                    distance = intersection.distance_to(ray_start)
-                    intersecting_walls.append((distance, wall))
+                if distance > 0 and 0 < on_wall < 1:
+                    intersecting_walls.append((distance, wall, on_wall))
 
         intersecting_walls.sort(key=lambda x: x[0])
 
@@ -236,11 +235,12 @@ class FiveGeeeeeeeee:
             )
 
     def draw_level(self, surface):
-        for w in range(0, self.width):
-            intersection = self._wall_intersection_at_column(w)
+        for column in range(0, self.width):
+            intersection = self._wall_intersection_at_column(column)
             wall = None
+            u = None
             if intersection:
-                (distance, wall) = intersection
+                (distance, wall, u) = intersection
                 if distance == 0:
                     wall_height = 0
                 else:
@@ -251,23 +251,28 @@ class FiveGeeeeeeeee:
             pygame.draw.line(
                 surface,
                 (0, 0, 128),
-                (w, 0),
-                (w, self.height / 2 - wall_height / 2)
+                (column, 0),
+                (column, self.height / 2 - wall_height / 2)
             )
 
             if wall:
-                pygame.draw.line(
-                    surface,
-                    wall.color,
-                    (w, self.height / 2 - wall_height / 2),
-                    (w, self.height / 2 + wall_height / 2)
-                )
+                for y in range(0, int(wall_height)):
+                    rect = self._icon.get_rect()
+                    width, height = rect.width, rect.height
+                    c = self._icon.get_at(
+                        (int(u * width), int((y / wall_height) * height)),
+                    )
+
+                    surface.set_at(
+                        (column, int(self.height / 2 - wall_height / 2 + y)),
+                        c
+                    )
 
             pygame.draw.line(
                 surface,
                 (128, 0, 128),
-                (w, self.height / 2 + wall_height / 2),
-                (w, self.height)
+                (column, self.height / 2 + wall_height / 2),
+                (column, self.height)
             )
 
     def draw(self):
