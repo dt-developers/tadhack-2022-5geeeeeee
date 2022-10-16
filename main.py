@@ -16,7 +16,7 @@ from random import Random
 
 class Player:
     def __init__(self):
-        self.position = Vector2(50, 50)
+        self.position = Vector2(0, 0)
         self.direction = Vector2(0, -1)
         self.speed = 3
         self.turn_speed = 10
@@ -25,13 +25,40 @@ class Player:
         self.api = 0
 
 
+TEXTURES = {}
+
+
+def _get_cached_texture(filename):
+    try:
+        if os.path.exists(filename) and filename not in TEXTURES:
+            TEXTURES[filename] = image.load(filename)
+
+        return TEXTURES[filename]
+    except TypeError:
+        return None
+
+
+def _get_cached_and_scaled_texture(name, size):
+    scaled_name = name + str(size)
+    texture = _get_cached_texture(name)
+
+    if scaled_name not in TEXTURES:
+        scaled = pygame.transform.scale(
+            texture, size
+        )
+        TEXTURES[scaled_name] = scaled
+
+    return TEXTURES[scaled_name]
+
+
 class Wall:
-    def __init__(self, start, end, color):
+    def __init__(self, start, end, fill):
         self.start = start
         self.end = end
         self.equation = Vector3(end.y - start.y, -(end.x - start.x), end.x * start.y - start.x * end.y)
         self.direction = (end - start)
-        self.color = color
+        self.fill = fill
+        self.texture = _get_cached_texture(fill)
 
 
 class Projectile:
@@ -53,12 +80,15 @@ class Level:
         )
 
         self.walls = (
-            Wall(Vector2(0, 0), Vector2(50, 0), (255, 0, 0)),
-            Wall(Vector2(50, 0), Vector2(50, 25), (128, 0, 0)),
-            Wall(Vector2(50, 25), Vector2(100, 0), (64, 0, 0)),
-            Wall(Vector2(100, 0), Vector2(100, 100), (0, 255, 0)),
-            Wall(Vector2(100, 100), Vector2(0, 100), (0, 0, 255)),
-            Wall(Vector2(0, 100), Vector2(0, 0), (255, 255, 255)),
+            Wall(Vector2(-10, 10), Vector2(-10, -10), "assets/wall_bricks.png"),
+            Wall(Vector2(-10, -10), Vector2(10, -10), "assets/wall_bricks.png"),
+            Wall(Vector2(10, -10), Vector2(10, 10), "assets/wall_bricks.png"),
+            Wall(Vector2(10, 10), Vector2(50, 10), (200, 200, 200)),
+            Wall(Vector2(50, 10), Vector2(50, 100), (200, 200, 200)),
+            Wall(Vector2(50, 100), Vector2(0, 100), (200, 200, 200)),
+            Wall(Vector2(0, 100), Vector2(-50, 100), (200, 200, 200)),
+            Wall(Vector2(-50, 100), Vector2(-50, 10), (200, 200, 200)),
+            Wall(Vector2(-50, 10), Vector2(-10, 10), (200, 200, 200)),
         )
         self.enemies = ()
         self.projectiles = list()
@@ -208,8 +238,14 @@ class FiveGeeeeeeeee:
         surface.blit(hud, (0, 0))
 
     def draw_minimap(self, surface, player, offset):
+        draw.polygon(
+            surface,
+            (0, 0, 0),
+            list(map(lambda x: offset + x.start, self._level.walls))
+        )
+
         for wall in self._level.walls:
-            draw.line(surface, wall.color, offset + wall.start, offset + wall.end)
+            draw.line(surface, (255, 255, 255), offset + wall.start, offset + wall.end)
 
         draw.circle(
             surface,
@@ -256,16 +292,14 @@ class FiveGeeeeeeeee:
             )
 
             if wall:
-                for y in range(0, int(wall_height)):
-                    rect = self._icon.get_rect()
-                    width, height = rect.width, rect.height
-                    c = self._icon.get_at(
-                        (int(u * width), int((y / wall_height) * height)),
-                    )
-
-                    surface.set_at(
-                        (column, int(self.height / 2 - wall_height / 2 + y)),
-                        c
+                if wall.texture:
+                    self.draw_textured_slice(column, surface, u, wall, wall_height)
+                else:
+                    pygame.draw.line(
+                        surface,
+                        wall.fill,
+                        (column, self.height / 2 - wall_height / 2),
+                        (column, self.height / 2 + wall_height / 2),
                     )
 
             pygame.draw.line(
@@ -275,6 +309,27 @@ class FiveGeeeeeeeee:
                 (column, self.height)
             )
 
+    def draw_textured_slice(self, column, surface, u, wall, wall_height):
+        width = wall.texture.get_rect().width
+        texture = _get_cached_and_scaled_texture(wall.fill, (width, wall_height))
+
+        surface.blit(
+            texture,
+            (column, int(self.height / 2 - wall_height / 2)),
+            (u * width, 0, 1, wall_height)
+        )
+
+        # for y in range(0, int(wall_height)):
+        #     color = texture.get_at(
+        #         (int(u * width), int((y / wall_height) * height)),
+        #     )
+        #
+        #     surface.set_at(
+        #         (column, int(self.height / 2 - wall_height / 2 + y)),
+        #         color
+        #     )
+        #
+
     def draw(self):
         self._display_surf.fill((0, 0, 0))
 
@@ -282,8 +337,7 @@ class FiveGeeeeeeeee:
 
         self.draw_hud(self._display_surf)
 
-        # debug
-        self.draw_minimap(self._display_surf, self.player, Vector2(0, 40))
+        self.draw_minimap(self._display_surf, self.player, Vector2(100, 50))
 
         pygame.display.update()
         pass
