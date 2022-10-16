@@ -18,6 +18,8 @@ Can you kill all the red dot enemies (Lag in network) before your money and your
 
 Note for pronounciation: The actual title of the app is `5Geeeeeeee`. Imagine a happy programmer and user being excited about using this app: Yipee. Important is that everytime you say the name, it has to be pronounced just a bit differently.
 
+Also: [YouTube](https://youtu.be/A4ZEjhT8M0g) 
+
 How?
 ====
 
