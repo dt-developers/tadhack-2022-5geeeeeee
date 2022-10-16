@@ -23,7 +23,7 @@ How?
 
 I keep dabbling in engines of old, and am happy to learn more on the go, so this time I decided to start building a doom like engine! Please don't go to close to the walls, I still have to figure out how to effectively transfer data from a texture to the screen.
 
-This complete thing works by using [ray marching]() aka, it shots rays for all columngs of the display and sees where it hits. Smart people have invented [BSPs]() for optimizing the amount of calculations to be done. I did not use them.
+This complete thing works by using [ray casting](https://en.wikipedia.org/wiki/Ray_casting) aka, it shots rays for all columngs of the display and sees where it hits. Smart people have invented [BSPs](https://en.wikipedia.org/wiki/Binary_space_partitioning) for optimizing the amount of calculations to be done. I did not use them.
 
 Instead all columns will check all walls (represented as lines) if their ray shot collides with the line. If there is a collection it is determined if it was in the texture, or if it was outside. Based on a successfull hit, the distance of that intersection can be determined. The inverse of that distance is then used for the hights of the wall.
 
@@ -33,6 +33,7 @@ There are no floors or ceilings (except for the awesome T and hubraum colors) be
 
 The missing animations for the arm (mine by the way) are to be implemented by the reader. I encourage you to think about using [Karls](https://twitter.com/kommanderkarl)(not affiliated) animations as a basis.
 
+And indeed, the textures are coming directly from the [hubraum](hubraum.com)-offices and my hands.
 
 # Next?
 
