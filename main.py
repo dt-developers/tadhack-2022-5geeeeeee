@@ -1,15 +1,16 @@
 #
 #
 
-# ignore pygame advertisement, sorry just to self aware lib
+# ignore pygame advertisement, sorry just to self-aware lib
 import os
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 
 import pygame
 from pygame import image, display, draw
-from pygame.math import Vector2
+from pygame.math import Vector2, Vector3
 
+import math
 from random import Random
 
 
@@ -17,7 +18,7 @@ class Player:
     def __init__(self):
         self.position = Vector2(50, 50)
         self.direction = Vector2(0, -1)
-        self.speed = .1
+        self.speed = .3
         self.turn_speed = 1
         self.money = 100
         self.points = 0
@@ -25,11 +26,12 @@ class Player:
 
 
 class Wall:
-    def __init__(self, start, end, texture_index):
+    def __init__(self, start, end, color):
         self.start = start
         self.end = end
-        self.direction = end - start
-        self.texture_index = texture_index
+        self.equation = Vector3(end.y - start.y, -(end.x - start.x), end.x * start.y - start.x * end.y)
+        self.direction = (end - start)
+        self.color = color
 
 
 class Projectile:
@@ -51,14 +53,14 @@ class Level:
         )
 
         self.walls = (
-            Wall(Vector2(0, 0), Vector2(100, 0), 0),
-            Wall(Vector2(100, 0), Vector2(100, 100), 1),
-            Wall(Vector2(100, 100), Vector2(0, 100), 2),
-            Wall(Vector2(0, 100), Vector2(0, 0), 3),
+            Wall(Vector2(0, 0), Vector2(50, 0), (255, 0, 0)),
+            Wall(Vector2(50, 0), Vector2(50, 25), (128, 0, 0)),
+            Wall(Vector2(50, 25), Vector2(100, 0), (64, 0, 0)),
+            Wall(Vector2(100, 0), Vector2(100, 100), (0, 255, 0)),
+            Wall(Vector2(100, 100), Vector2(0, 100), (0, 0, 255)),
+            Wall(Vector2(0, 100), Vector2(0, 0), (255, 255, 255)),
         )
-
         self.enemies = ()
-
         self.projectiles = list()
 
 
@@ -137,36 +139,56 @@ class FiveGeeeeeeeee:
             if now > projectile.birth_time + 300:
                 self._level.projectiles.remove(projectile)
 
-    def wall_intersection_at_column(self, column):
+    def _wall_intersection_at_column(self, column):
         fov = 60
 
-        # direction of ray
-        direction = self.player.direction.rotate(-fov / 2)
-        direction.rotate_ip(fov * (column / self.width))
+        ray_direction = self.player.direction.rotate(-fov / 2)
+        ray_direction.rotate_ip(fov * (column / self.width))
+
+        ray_start = self.player.position
+        ray_end = ray_start + ray_direction
+
+        ray_equation = Vector3(
+            ray_end.y - ray_start.y,
+            -(ray_end.x - ray_start.x)
+            , ray_end.x * ray_start.y - ray_start.x * ray_end.y
+        )
 
         intersecting_walls = list()
-
-        pd = self.player.direction
         for wall in self._level.walls:
-            wd = wall.direction
-            dot = wd.dot(pd)
-
-            if dot < 0:
-                # not hitting
+            intersection = ray_equation.cross(wall.equation)
+            if intersection.z < 0 or math.isclose(intersection.z, 0):
+                # no intersection
                 continue
             else:
+                # back to 2d
+                intersection = (intersection.xy / intersection.z)
 
+                # point hitting wall facing wall?
+                # px = p0 + x*v
+                # px - p0 = x*v
+                # (px - p0) / v = x
+                if not math.isclose(ray_end.x, 0):
+                    t1 = (intersection.x - ray_start.x) / ray_direction.x
+                elif not math.isclose(ray_end.y, 0):
+                    t1 = (intersection.y - ray_start.y) / ray_direction.y
+                else:
+                    continue
 
+                if not math.isclose(wall.direction.x, 0):
+                    t2 = (intersection.x - wall.start.x) / wall.direction.x
+                elif not math.isclose(wall.direction.y, 0):
+                    t2 = (intersection.y - wall.start.y) / wall.direction.y
+                else:
+                    continue
 
+                if t1 > 0 and 0 < t2 < 1:
+                    distance = intersection.distance_to(ray_start)
+                    intersecting_walls.append((distance, wall))
 
-            if 0 < column < 1:
-                distance = (intersection - self.player.position) / self.player.direction
-            intersecting_walls.append((distance, wall))
-            else:
-                continue
+        intersecting_walls.sort(key=lambda x: x[0])
 
         if len(intersecting_walls) > 0:
-            intersecting_walls.sort(key=lambda it: it[0])
             return intersecting_walls[0]
         else:
             return None
@@ -186,19 +208,22 @@ class FiveGeeeeeeeee:
 
         surface.blit(hud, (0, 0))
 
-    def draw_player(self, surface, player):
+    def draw_minimap(self, surface, player, offset):
+        for wall in self._level.walls:
+            draw.line(surface, wall.color, offset + wall.start, offset + wall.end)
+
         draw.circle(
             surface,
             (255, 0, 0),
-            self.player.position,
-            5
+            offset + self.player.position,
+            3
         )
 
         draw.line(
             surface,
             (255, 0, 0),
-            player.position,
-            player.position + player.direction * 10,
+            offset + player.position,
+            offset + player.position + player.direction * 10,
             1
         )
 
@@ -206,47 +231,54 @@ class FiveGeeeeeeeee:
             draw.circle(
                 surface,
                 (0, 255, 0),
-                p.position,
+                offset + p.position,
                 3
             )
 
     def draw_level(self, surface):
         for w in range(0, self.width):
-            intersection = self.wall_intersection_at_column(w)
+            intersection = self._wall_intersection_at_column(w)
+            wall = None
             if intersection:
                 (distance, wall) = intersection
-                wall_height = 1 / distance
+                if distance == 0:
+                    wall_height = 0
+                else:
+                    wall_height = 10000 * 1 / distance
             else:
                 wall_height = 0
 
             pygame.draw.line(
                 surface,
-                (0, 0, 255),
+                (0, 0, 128),
                 (w, 0),
                 (w, self.height / 2 - wall_height / 2)
             )
+
+            if wall:
+                pygame.draw.line(
+                    surface,
+                    wall.color,
+                    (w, self.height / 2 - wall_height / 2),
+                    (w, self.height / 2 + wall_height / 2)
+                )
+
             pygame.draw.line(
                 surface,
-                (0, 255, 255),
-                (w, self.height / 2 - wall_height / 2),
-                (w, self.height / 2 + wall_height / 2)
-            )
-            pygame.draw.line(
-                surface,
-                (255, 0, 255),
+                (128, 0, 128),
                 (w, self.height / 2 + wall_height / 2),
                 (w, self.height)
             )
 
     def draw(self):
-        self._display_surf.fill((255, 0, 255))
+        self._display_surf.fill((0, 0, 0))
 
         self.draw_level(self._display_surf)
 
         self.draw_hud(self._display_surf)
 
         # debug
-        self.draw_player(self._display_surf, self.player)
+        self.draw_minimap(self._display_surf, self.player, Vector2(0, 40))
 
         pygame.display.update()
         pass
