@@ -1,4 +1,4 @@
-#
+#!/usr/bin/env python3
 #
 
 # ignore pygame advertisement, sorry just to self-aware lib
@@ -29,15 +29,16 @@ def _get_cached_texture(filename):
 
 
 class APICall:
-    def __init__(self, hand_texture, loading_time, session_color, session_size, session_payload, session_cost,
-                 session_damage):
+    def __init__(self, hand_texture, loading_time, session_color, session_size, session_cost,
+                 session_damage, session_speed, session_duration):
         self.hand_texture = hand_texture
         self.loading_time = loading_time
         self.session_color = session_color
         self.session_size = session_size
-        self.session_payload = session_payload
         self.session_cost = session_cost
         self.session_damage = session_damage
+        self.session_speed = session_speed
+        self.session_duration = session_duration
 
 
 class Enemy:
@@ -50,9 +51,9 @@ class Enemy:
 
 
 class Player:
-    def __init__(self):
-        self.position = Vector2(0, 0)
-        self.direction = Vector2(0, 1)
+    def __init__(self, position, direction):
+        self.position = position
+        self.direction = direction
         self.speed = 1
         self.turn_speed = 3
         self.money = 100
@@ -73,7 +74,7 @@ class Wall:
 
 
 class Session:
-    def __init__(self, position, direction, api, damage, speed=3, alive_time=1000):
+    def __init__(self, position, direction, api, damage, speed, alive_time):
         self.position = position
         self.direction = direction
         self.api = api
@@ -85,6 +86,8 @@ class Session:
 
 class Level:
     def __init__(self):
+        self.initial_player = (Vector2(0, 0), Vector2(0, 1))
+
         self.walls = (
             Wall(Vector2(-10, 10), Vector2(-10, -10), "assets/wall_bricks.png"),
             Wall(Vector2(-10, -10), Vector2(10, -10), "assets/wall_bricks.png"),
@@ -111,7 +114,7 @@ class Level:
 
 class FiveGeeeeeeeee:
     def __init__(self):
-        self.size = self.width, self.height = 640, 480
+        self.size = self.width, self.height = 800, 600
         self._running = True
         self._icon = None
         self._font = None
@@ -120,7 +123,7 @@ class FiveGeeeeeeeee:
         self._level = Level()
         self._api_calls = None
         self._keys_down = set()
-        self.player = Player()
+        self.player = Player(*self._level.initial_player)
 
     def initialize(self):
         pygame.init()
@@ -133,9 +136,10 @@ class FiveGeeeeeeeee:
         display.set_icon(self._icon)
 
         self._api_calls = {
-            "default": APICall(image.load("./assets/api_default.png"), 300, (128, 128, 128), 50, 0.1, 0, 10),
-            "latency": APICall(image.load("./assets/api_latency.png"), 10, (255, 0, 0), 20, 0.01, 1, 5, ),
-            "throughput": APICall(image.load("./assets/api_throughput.png"), 1000, (255, 255, 0), 200, 20.0, 10, 50),
+            "default": APICall(image.load("./assets/api_default.png"), 500, (128, 128, 128), 50, 0, 5, 1, 3000),
+            "latency": APICall(image.load("./assets/api_latency.png"), 10, (0, 0, 0), 10, 2.5, 12, 5, 1000),
+            "throughput": APICall(image.load("./assets/api_throughput.png"), 1000, (255, 255, 0), 100.0, 10, 75, 0.3,
+                                  10000),
         }
 
         self._running = True
@@ -184,7 +188,9 @@ class FiveGeeeeeeeee:
                             self.player.position.copy(),
                             self.player.direction.copy(),
                             self.player.api,
-                            api.session_damage
+                            api.session_damage,
+                            api.session_speed,
+                            api.session_duration
                         )
                     )
                     self.player.last_shot = now
@@ -289,10 +295,10 @@ class FiveGeeeeeeeee:
         surface.blit(hud, (0, 0))
 
     def draw_minimap(self, surface, player, offset):
-        draw.polygon(
+        draw.rect(
             surface,
             (0, 0, 0),
-            list(map(lambda x: offset + x.start, self._level.walls))
+            (0, 0, 150, 170)
         )
 
         for wall in self._level.walls:
@@ -310,25 +316,25 @@ class FiveGeeeeeeeee:
 
         draw.line(
             surface,
-            (255, 0, 0),
+            (0, 255, 0),
             offset + player.position,
-            offset + player.position + player.direction.rotate(player.fov / -2) * 100,
+            offset + player.position + player.direction.rotate(player.fov / -2) * 20,
             1
         )
 
         draw.line(
             surface,
-            (255, 0, 0),
+            (0, 255, 0),
             offset + player.position,
-            offset + player.position + player.direction * 20,
+            offset + player.position + player.direction * 10,
             1
         )
 
         draw.line(
             surface,
-            (255, 0, 0),
+            (0, 255, 0),
             offset + player.position,
-            offset + player.position + player.direction.rotate(player.fov / 2) * 100,
+            offset + player.position + player.direction.rotate(player.fov / 2) * 20,
             1
         )
 
@@ -341,6 +347,7 @@ class FiveGeeeeeeeee:
             )
 
     def draw_level(self, surface):
+        distances = list()
         for column in range(0, self.width):
             intersection = self._wall_intersection_at_column(column)
             wall = None
@@ -351,8 +358,11 @@ class FiveGeeeeeeeee:
                     wall_height = 0
                 else:
                     wall_height = 10000 * 1 / distance
+
+                distances.append(distance)
             else:
                 wall_height = 0
+                distances.append(10000)
 
             pygame.draw.line(
                 surface,
@@ -378,6 +388,7 @@ class FiveGeeeeeeeee:
                 (column, self.height / 2 + wall_height / 2),
                 (column, self.height)
             )
+        return distances
 
     def draw_textured_slice(self, column, surface, u, wall, wall_height):
         width = wall.texture.get_rect().width
@@ -392,7 +403,7 @@ class FiveGeeeeeeeee:
             (u * width, 0, 1, wall_height)
         )
 
-    def draw_sessions(self, surface, sessions):
+    def draw_sessions(self, surface, sessions, distances):
         player = self.player
         p = player.position
         fov = player.fov
@@ -429,14 +440,16 @@ class FiveGeeeeeeeee:
                     # real
                     api = self._api_calls[session.api]
 
-                    draw.circle(
-                        surface,
-                        api.session_color,
-                        (x * self.width, self.height / 2),
-                        api.session_size * 10 / player.position.distance_to(s)
-                    )
+                    distance = player.position.distance_to(s)
+                    if distance < distances[int(x * self.width)]:
+                        draw.circle(
+                            surface,
+                            api.session_color,
+                            (x * self.width, self.height / 2),
+                            api.session_size * 10 / distance
+                        )
 
-    def draw_enemies(self, surface, enemies):
+    def draw_enemies(self, surface, enemies, distances):
         player = self.player
         p = player.position
         fov = player.fov
@@ -466,36 +479,35 @@ class FiveGeeeeeeeee:
                         draw.circle(surface, (255, 0, 0), offset + intersection, 2)
 
                     # real
-                    adjusted_height = 1000.0 * 1.0 / player.position.distance_to(e)
-                    draw.circle(
-                        surface,
-                        enemy.color,
-                        (x * self.width, self.height / 2),
-                        adjusted_height / 2
-                    )
-                    draw.rect(
-                        surface,
-                        (0, 255, 0),
-                        (x * self.width - 30, self.height / 2 - adjusted_height / 2, (enemy.hp / 100.0) * 60, 5)
-                    )
-
-                    pass
+                    distance = player.position.distance_to(intersection)
+                    if distance < distances[int(x * self.width)]:
+                        adjusted_height = 1000.0 * 1.0 / player.position.distance_to(e)
+                        draw.circle(
+                            surface,
+                            enemy.color,
+                            (x * self.width, self.height / 2),
+                            adjusted_height / 2
+                        )
+                        draw.rect(
+                            surface,
+                            (0, 255, 0),
+                            (x * self.width - 30, self.height / 2 - adjusted_height / 2, (enemy.hp / 100.0) * 60, 5)
+                        )
 
     def draw(self):
         self._display_surf.fill((0, 0, 0))
 
-        self.draw_level(self._display_surf)
+        distances_per_column = self.draw_level(self._display_surf)
 
-        self.draw_minimap(self._display_surf, self.player, Vector2(100, 50))
+        self.draw_minimap(self._display_surf, self.player, Vector2(70, 50))
 
-        self.draw_enemies(self._display_surf, self._level.enemies)
+        self.draw_enemies(self._display_surf, self._level.enemies, distances_per_column)
 
-        self.draw_sessions(self._display_surf, self._level.sessions)
+        self.draw_sessions(self._display_surf, self._level.sessions, distances_per_column)
 
         self.draw_hud(self._display_surf)
 
         pygame.display.update()
-        pass
 
     def cleanup(self):
         pygame.quit()
